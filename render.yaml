@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: jmx-forge
+    env: docker
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: JMX_FORGE_HEADLESS
+        value: "true"
+      - key: JMX_FORGE_RETENTION_SECONDS
+        value: "3600"
+      - key: PYTHONUNBUFFERED
+        value: "1"
