@@ -56,6 +56,24 @@ Environment defaults for Render:
 6. Review pipeline output, correlation confidence, validation, and preview.
 7. Download generated artifacts.
 
+### Local Recorder + Render Processor (Recommended for cloud deployment)
+
+When hosted on Render, popup browser recording cannot open on the server host.
+Use local recorder agent:
+
+```bash
+python local_recorder_client.py \
+  --server https://<your-render-service>.onrender.com \
+  --url https://<target-app-url> \
+  --threads 10 --ramp-up 60 --loops 1
+```
+
+Flow:
+1. Local browser opens on your machine.
+2. You perform journey and press Enter in terminal.
+3. Captured requests are uploaded to Render endpoint `/api/generate-from-capture`.
+4. Render generates JMX/CSV/cURL and returns download links.
+
 ### Result Analytics (JTL + XML)
 
 1. Upload `JTL` file.
@@ -69,6 +87,7 @@ Environment defaults for Render:
 - `POST /api/start-recording`
 - `GET /api/session-status/<session_id>`
 - `POST /api/generate`
+- `POST /api/generate-from-capture`
 - `GET /api/stream/<job_id>`
 - `GET /api/jobs`
 - `GET /api/preview/<job_id>`

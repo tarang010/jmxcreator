@@ -19,7 +19,7 @@ from flask import Flask, Response, jsonify, render_template, request, send_file
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
 
-from core.traffic_capture import RecordingSession, deduplicate, build_curl_commands
+from core.traffic_capture import CapturedRequest, RecordingSession, deduplicate, build_curl_commands
 from core.transaction_grouper import group_into_transactions
 from core.ai_correlation_engine import run_ai_correlation
 from core.jmx_generator import generate_jmx, generate_csv
@@ -148,6 +148,63 @@ def generate():
         daemon=True,
     ).start()
 
+    return jsonify({"job_id": job_id})
+
+
+@app.route("/api/generate-from-capture", methods=["POST"])
+def generate_from_capture():
+    data = request.get_json(silent=True) or {}
+    raw_requests = data.get("captured_requests") or []
+    if not isinstance(raw_requests, list) or not raw_requests:
+        return jsonify({"error": "captured_requests must be a non-empty list"}), 400
+
+    num_threads = _coerce_int(data.get("num_threads"), 10, 1, 10000)
+    ramp_up = _coerce_int(data.get("ramp_up"), 60, 0, 36000)
+    loop_count = _coerce_int(data.get("loop_count"), 1, 1, 1000000)
+
+    converted: list[CapturedRequest] = []
+    for item in raw_requests:
+        try:
+            converted.append(
+                CapturedRequest(
+                    sequence=int(item.get("sequence", len(converted) + 1)),
+                    url=str(item.get("url") or ""),
+                    method=str(item.get("method") or "GET"),
+                    headers=dict(item.get("headers") or {}),
+                    body=item.get("body"),
+                    response_status=int(item.get("response_status") or 0),
+                    response_headers=dict(item.get("response_headers") or {}),
+                    response_body=item.get("response_body"),
+                    timestamp=float(item.get("timestamp") or 0.0),
+                    page_context=str(item.get("page_context") or "Captured"),
+                    resource_type=str(item.get("resource_type") or "xhr"),
+                )
+            )
+        except Exception:
+            continue
+    converted = [r for r in converted if r.url]
+    if not converted:
+        return jsonify({"error": "No valid requests in captured_requests"}), 400
+
+    job_id = str(uuid.uuid4())
+    q = queue.Queue()
+    with _STATE_LOCK:
+        _jobs[job_id] = {
+            "status": "running",
+            "created_at": time.time(),
+            "source": "uploaded_capture",
+            "num_threads": num_threads,
+            "ramp_up": ramp_up,
+            "loop_count": loop_count,
+        }
+        _job_queues[job_id] = q
+
+    threading.Thread(
+        target=_run_generation_from_requests,
+        args=(job_id, converted, num_threads, ramp_up, loop_count),
+        name=f"gen-upload-{job_id[:8]}",
+        daemon=True,
+    ).start()
     return jsonify({"job_id": job_id})
 
 
@@ -383,6 +440,113 @@ def _run_generation(job_id: str, session: RecordingSession, num_threads: int, ra
         with _STATE_LOCK:
             _jobs[job_id]["status"] = "failed"
 
+    finally:
+        q.put(None)
+
+
+def _run_generation_from_requests(
+    job_id: str, raw_requests: list[CapturedRequest], num_threads: int, ramp_up: int, loop_count: int
+) -> None:
+    with _STATE_LOCK:
+        q = _job_queues[job_id]
+
+    def emit(event: str, data: dict) -> None:
+        q.put({"event": event, "data": data})
+
+    try:
+        emit("phase", {"phase": "capture", "message": "Using uploaded local capture..."})
+        requests = deduplicate(raw_requests)
+        app_name = _derive_app_name(requests)
+        safe_name = _safe_filename(app_name)
+
+        emit("phase", {"phase": "grouping", "message": "Building transaction controllers..."})
+        transactions, journey_summary = group_into_transactions(requests, app_name=app_name)
+        emit(
+            "transactions",
+            {
+                "transactions": [
+                    {"name": tx.name, "description": tx.description, "request_count": len(tx.requests)} for tx in transactions
+                ],
+                "journey_summary": journey_summary,
+            },
+        )
+
+        emit("phase", {"phase": "correlation", "message": "Running AI correlation engine..."})
+        correlations, csv_columns = run_ai_correlation(requests)
+        emit(
+            "correlations",
+            {
+                "correlations": [
+                    {
+                        "name": c.name,
+                        "type": c.extractor_type,
+                        "expression": c.extractor_expression,
+                        "source_seq": c.source_request_seq,
+                        "usage_count": len(c.used_in_sequences),
+                        "sample": c.sample_value,
+                        "confidence": c.confidence,
+                        "reason": c.reason,
+                    }
+                    for c in correlations
+                ],
+                "csv_columns": [{"name": c.column_name, "description": c.description} for c in csv_columns],
+            },
+        )
+
+        emit("phase", {"phase": "generating", "message": "Generating JMX and output files..."})
+        slug = f"{safe_name}_{job_id[:8]}"
+        jmx_path = os.path.join(OUTPUT_DIR, f"{slug}.jmx")
+        csv_path = os.path.join(OUTPUT_DIR, f"{slug}_data.csv")
+        curl_path = os.path.join(OUTPUT_DIR, f"{slug}_curls.txt")
+
+        generate_jmx(
+            app_name=app_name,
+            transactions=transactions,
+            correlations=correlations,
+            csv_columns=csv_columns,
+            user_journey_summary=journey_summary,
+            output_path=jmx_path,
+            num_threads=num_threads,
+            ramp_up=ramp_up,
+            loop_count=loop_count,
+        )
+        validation = _validate_jmx(jmx_path)
+        if not validation.get("valid"):
+            raise RuntimeError(f"Generated JMX validation failed: {validation.get('error', 'invalid structure')}")
+        if csv_columns:
+            generate_csv(csv_columns, csv_path)
+        with open(curl_path, "w", encoding="utf-8") as fh:
+            fh.write(build_curl_commands(requests))
+
+        result = {
+            "app_name": app_name,
+            "jmx_filename": os.path.basename(jmx_path),
+            "csv_filename": os.path.basename(csv_path) if csv_columns else None,
+            "curl_filename": os.path.basename(curl_path),
+            "transaction_count": len(transactions),
+            "correlation_count": len(correlations),
+            "request_count": len(requests),
+            "job_id": job_id,
+            "validation": validation,
+        }
+        with _STATE_LOCK:
+            _jobs[job_id].update(
+                {
+                    "status": "complete",
+                    "completed_at": time.time(),
+                    "jmx_path": jmx_path,
+                    "csv_path": csv_path if csv_columns else None,
+                    "curl_path": curl_path,
+                    "validation": validation,
+                    **result,
+                }
+            )
+        emit("complete", result)
+    except Exception as exc:
+        err_detail = traceback.format_exc()
+        emit("error", {"message": str(exc), "detail": err_detail})
+        with _STATE_LOCK:
+            _jobs[job_id]["status"] = "failed"
     finally:
         q.put(None)
 
