@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JMX Forge — Performance Test Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #0b120e;
+  --surface:  #101b14;
+  --surface2: #16241b;
+  --surface3: #1d2d23;
+  --border:   #284032;
+  --border2:  #335541;
+  --accent:   #6dd39e;
+  --accent2:  #2f8f5b;
+  --green:    #8fe388;
+  --amber:    #ffab00;
+  --red:      #ff4444;
+  --purple:   #7dcf9c;
+  --text:     #e8edf4;
+  --text2:    #8899aa;
+  --text3:    #556677;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none; z-index: 0;
+}
+.app { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+
+/* ── Header ── */
+header {
+  display: flex; align-items: center; gap: 20px;
+  margin-bottom: 48px; padding-bottom: 28px;
+  border-bottom: 1px solid var(--border);
+}
+.logo {
+  width: 50px; height: 50px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius: 12px; display: flex; align-items: center;
+  justify-content: center; font-size: 22px;
+  box-shadow: 0 0 24px rgba(0,212,255,0.25); flex-shrink: 0;
+}
+.brand h1 { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+.brand p  { font-size: 11px; color: var(--text3); letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
+.badges   { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.badge    { padding: 3px 10px; border-radius: 4px; font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
+.badge-blue  { background: rgba(0,212,255,0.1);  color: var(--accent); border: 1px solid rgba(0,212,255,0.2); }
+.badge-green { background: rgba(0,230,118,0.1);  color: var(--green);  border: 1px solid rgba(0,230,118,0.2); }
+.badge-amber { background: rgba(255,171,0,0.1);  color: var(--amber);  border: 1px solid rgba(255,171,0,0.2); }
+
+/* ── Section label ── */
+.slabel {
+  font-size: 10px; font-weight: 600; letter-spacing: 3px;
+  text-transform: uppercase; color: var(--accent);
+  margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+}
+.slabel::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* ── Input panel ── */
+.input-panel {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; padding: 28px 32px; margin-bottom: 24px;
+}
+.input-row { display: flex; gap: 12px; align-items: flex-end; }
+.field { flex: 1; }
+.field label {
+  display: block; font-size: 11px; font-weight: 500;
+  color: var(--text2); margin-bottom: 8px; letter-spacing: 1px; text-transform: uppercase;
+}
+input[type=text] {
+  width: 100%; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 16px;
+  font-family: 'JetBrains Mono', monospace; font-size: 14px;
+  color: var(--text); outline: none; transition: all 0.2s;
+}
+input[type=text]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0,212,255,0.08);
+  background: var(--surface3);
+}
+input[type=text]::placeholder { color: var(--text3); }
+input[type=text]:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Buttons ── */
+.btn {
+  padding: 12px 24px; border: none; border-radius: 8px;
+  font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+  transition: all 0.2s; white-space: nowrap; letter-spacing: 0.5px;
+}
+.btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+.btn-journey  { background: linear-gradient(135deg, var(--amber), #e69500); color: #000; box-shadow: 0 0 20px rgba(255,171,0,0.2); }
+.btn-journey:not(:disabled):hover  { transform: translateY(-1px); box-shadow: 0 0 30px rgba(255,171,0,0.35); }
+.btn-generate { background: linear-gradient(135deg, var(--green), #00b85a); color: #000; box-shadow: 0 0 20px rgba(0,230,118,0.2); }
+.btn-generate:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 0 30px rgba(0,230,118,0.35); }
+
+.btn-download {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 12px 20px; border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace; font-size: 13px;
+  cursor: pointer; text-decoration: none; transition: all 0.2s; border: none;
+}
+.btn-jmx  { background: rgba(0,212,255,0.1); border: 1px solid rgba(0,212,255,0.3); color: var(--accent); }
+.btn-jmx:hover  { background: rgba(0,212,255,0.2); }
+.btn-csv  { background: rgba(0,230,118,0.1); border: 1px solid rgba(0,230,118,0.3); color: var(--green); }
+.btn-csv:hover  { background: rgba(0,230,118,0.2); }
+.btn-curl { background: rgba(255,171,0,0.1);  border: 1px solid rgba(255,171,0,0.3);  color: var(--amber); }
+.btn-curl:hover { background: rgba(255,171,0,0.2); }
+.btn-new  { background: var(--surface2); border: 1px solid var(--border); color: var(--text2); }
+.btn-new:hover  { border-color: var(--border2); color: var(--text); }
+
+/* ── Recording bar ── */
+.recording-bar {
+  display: none; background: var(--surface);
+  border: 1px solid rgba(255,171,0,0.3); border-radius: 12px;
+  padding: 16px 24px; margin-bottom: 24px;
+  align-items: center; gap: 16px;
+}
+.recording-bar.visible { display: flex; }
+.rec-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red); animation: blink 1s ease-in-out infinite; flex-shrink: 0; }
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.15; } }
+.rec-text { flex: 1; font-size: 13px; color: var(--amber); line-height: 1.7; }
+.rec-counter { text-align: right; }
+.rec-count { font-size: 24px; font-family: 'Syne', sans-serif; font-weight: 800; color: var(--amber); line-height: 1; }
+.rec-count-label { font-size: 10px; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; margin-top: 3px; }
+
+/* ── Pipeline progress bar ── */
+.pipeline {
+  display: flex; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden; margin-bottom: 24px;
+}
+.pipe-step { flex: 1; padding: 14px 16px; border-right: 1px solid var(--border); transition: background 0.3s; }
+.pipe-step:last-child { border-right: none; }
+.pipe-step .num  { font-size: 10px; color: var(--text3); letter-spacing: 1px; }
+.pipe-step .name { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; color: var(--text2); margin-top: 2px; transition: color 0.3s; }
+.pipe-step .bar  { height: 2px; background: var(--border); border-radius: 1px; margin-top: 8px; overflow: hidden; }
+.pipe-step .bar-fill { height: 100%; width: 0; border-radius: 1px; transition: width 0.4s ease; }
+.pipe-step.active { background: rgba(0,212,255,0.04); }
+.pipe-step.active .name { color: var(--accent); }
+.pipe-step.active .bar-fill { background: var(--accent); width: 100%; animation: pulse-bar 1.2s ease-in-out infinite; }
+.pipe-step.done .name { color: var(--green); }
+.pipe-step.done .bar-fill { background: var(--green); width: 100%; animation: none; }
+@keyframes pulse-bar { 0%,100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+/* ── Terminal ── */
+.terminal { background: #080a0c; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 24px; overflow: hidden; }
+.terminal-hdr {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.d-r { background: #ff5f57; } .d-a { background: #febc2e; } .d-g { background: #28c840; }
+.t-title { font-size: 11px; color: var(--text3); margin-left: 4px; letter-spacing: 1px; }
+.terminal-body {
+  padding: 14px 18px; min-height: 160px; max-height: 320px;
+  overflow-y: auto; font-size: 12px; line-height: 2;
+}
+.ll { color: var(--text2); }
+.ll.info  { color: var(--accent); }
+.ll.ok    { color: var(--green); }
+.ll.warn  { color: var(--amber); }
+.ll.err   { color: var(--red); }
+
+/* ── Stats bar ── */
+.stats {
+  display: flex; gap: 1px; background: var(--border);
+  border: 1px solid var(--border); border-radius: 10px;
+  overflow: hidden; margin-bottom: 24px;
+}
+.stat { flex: 1; background: var(--surface); padding: 18px 20px; text-align: center; }
+.stat-v { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; color: var(--accent); line-height: 1; }
+.stat-l { font-size: 10px; color: var(--text3); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 4px; }
+
+/* ── Cards ── */
+.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px; }
+.card-title {
+  font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700;
+  color: var(--text2); margin-bottom: 14px; letter-spacing: 0.5px; text-transform: uppercase;
+}
+.card-body { max-height: 280px; overflow-y: auto; }
+
+/* ── Transaction items ── */
+.tx-list { display: flex; flex-direction: column; gap: 7px; }
+.tx-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; background: var(--surface2);
+  border-radius: 7px; border: 1px solid var(--border);
+  animation: fadeUp 0.3s ease forwards; opacity: 0;
+}
+@keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+.tx-n {
+  width: 22px; height: 22px; background: rgba(0,212,255,0.1);
+  border: 1px solid rgba(0,212,255,0.2); border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; color: var(--accent); font-weight: 700; flex-shrink: 0;
+}
+.tx-info { flex: 1; min-width: 0; }
+.tx-name { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tx-desc { font-size: 11px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.tx-cnt  { font-size: 10px; color: var(--text3); background: var(--surface3); padding: 2px 7px; border-radius: 4px; flex-shrink: 0; }
+
+/* ── Correlation items ── */
+.corr-list { display: flex; flex-direction: column; gap: 7px; }
+.corr-item {
+  padding: 9px 12px; background: var(--surface2);
+  border-radius: 7px; border: 1px solid var(--border);
+  border-left: 3px solid var(--purple);
+  animation: fadeUp 0.3s ease forwards; opacity: 0;
+}
+.corr-name { font-size: 12px; color: var(--purple); font-weight: 600; }
+.corr-meta { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.corr-expr { font-size: 11px; color: var(--text2); background: var(--bg); padding: 2px 6px; border-radius: 3px; margin-top: 4px; display: block; word-break: break-all; }
+
+/* ── Download panel ── */
+.download-panel {
+  display: none;
+  background: linear-gradient(135deg, rgba(0,230,118,0.04), rgba(0,212,255,0.04));
+  border: 1px solid rgba(0,230,118,0.2);
+  border-radius: 16px; padding: 28px 32px;
+  animation: fadeIn 0.4s ease;
+}
+.download-panel.visible { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.dl-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+.dl-icon { width: 44px; height: 44px; background: rgba(0,230,118,0.1); border: 2px solid var(--green); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.dl-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; color: var(--green); }
+.dl-sub   { font-size: 12px; color: var(--text2); margin-top: 3px; }
+.dl-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ── Misc ── */
+.empty { text-align: center; padding: 32px 16px; color: var(--text3); font-size: 12px; line-height: 2; }
+.hint  { margin-top: 14px; font-size: 11px; color: var(--text3); line-height: 1.8; }
+
+#pipeline-section, #results-section { display: none; }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="logo">⚡</div>
+    <div class="brand">
+      <h1>JMX Forge</h1>
+      <p>Performance Test Generator</p>
+    </div>
+    <div class="badges">
+      <span class="badge badge-blue">JMeter 5.6</span>
+      <span class="badge badge-green">Auto-Correlate</span>
+      <span class="badge badge-amber">No API Key</span>
+    </div>
+  </header>
+
+  <!-- Step 1 — URL + Journey -->
+  <div class="slabel">Step 1 — Enter URL &amp; Record Journey</div>
+  <div class="input-panel">
+    <div class="input-row">
+      <div class="field">
+        <label>Website URL</label>
+        <input type="text" id="url-input"
+               placeholder="https://yourapp.com"
+               autocomplete="off" spellcheck="false">
+      </div>
+      <button class="btn btn-journey"  id="btn-journey"  onclick="startJourney()">▶ Perform Journey</button>
+      <button class="btn btn-generate" id="btn-generate" onclick="startGeneration()" disabled>⚡ Generate JMX</button>
+    </div>
+    <div class="input-row" style="margin-top:12px;">
+      <div class="field">
+        <label>Threads</label>
+        <input type="text" id="num-threads" value="10" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="field">
+        <label>Ramp-up (sec)</label>
+        <input type="text" id="ramp-up" value="60" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="field">
+        <label>Loops</label>
+        <input type="text" id="loop-count" value="1" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+    <p class="hint">
+      <strong style="color:var(--amber)">How it works:</strong>
+      &nbsp;① Enter URL &nbsp;→&nbsp;
+      ② Click <em>Perform Journey</em> (browser opens) &nbsp;→&nbsp;
+      ③ Use your app normally &nbsp;→&nbsp;
+      ④ Click <em>Generate JMX</em>
+    </p>
+  </div>
+
+  <!-- Recording status bar -->
+  <div class="recording-bar" id="recording-bar">
+    <div class="rec-dot"></div>
+    <div class="rec-text">
+      <strong style="color:var(--amber)">RECORDING</strong> — Perform your full user journey in the browser.<br>
+      Click <strong>Generate JMX</strong> when you're done.
+    </div>
+    <div class="rec-counter">
+      <div class="rec-count" id="rec-count">0</div>
+      <div class="rec-count-label">Requests Captured</div>
+    </div>
+  </div>
+
+  <!-- Pipeline + terminal -->
+  <div id="pipeline-section">
+    <div class="slabel">Generation Pipeline</div>
+    <div class="pipeline">
+      <div class="pipe-step" id="step-capture">
+        <div class="num">01</div>
+        <div class="name">Collect Traffic</div>
+        <div class="bar"><div class="bar-fill"></div></div>
+      </div>
+      <div class="pipe-step" id="step-grouping">
+        <div class="num">02</div>
+        <div class="name">Build Transactions</div>
+        <div class="bar"><div class="bar-fill"></div></div>
+      </div>
+      <div class="pipe-step" id="step-correlation">
+        <div class="num">03</div>
+        <div class="name">Correlation</div>
+        <div class="bar"><div class="bar-fill"></div></div>
+      </div>
+      <div class="pipe-step" id="step-generating">
+        <div class="num">04</div>
+        <div class="name">Generate JMX</div>
+        <div class="bar"><div class="bar-fill"></div></div>
+      </div>
+    </div>
+
+    <div class="terminal">
+      <div class="terminal-hdr">
+        <div class="dot d-r"></div>
+        <div class="dot d-a"></div>
+        <div class="dot d-g"></div>
+        <span class="t-title">jmx-forge — output</span>
+      </div>
+      <div class="terminal-body" id="log-out"></div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div id="results-section">
+    <div class="stats">
+      <div class="stat"><div class="stat-v" id="s-req">—</div><div class="stat-l">Requests</div></div>
+      <div class="stat"><div class="stat-v" id="s-tx">—</div><div class="stat-l">Transactions</div></div>
+      <div class="stat"><div class="stat-v" id="s-corr">—</div><div class="stat-l">Correlations</div></div>
+      <div class="stat"><div class="stat-v" id="s-csv">—</div><div class="stat-l">CSV Fields</div></div>
+    </div>
+    <div class="card" style="margin-bottom:24px;">
+      <div class="card-title">JMX Validation</div>
+      <div class="card-body">
+        <div id="jmx-validation" class="empty">Validation details will appear after generation.</div>
+      </div>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-title">Transaction Controllers</div>
+        <div class="card-body">
+          <div class="tx-list" id="tx-list"><div class="empty">Waiting for pipeline…</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Correlations Detected</div>
+        <div class="card-body">
+          <div class="corr-list" id="corr-list"><div class="empty">Waiting for pipeline…</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:24px;">
+      <div class="card-title">Generated JMX Preview</div>
+      <div class="card-body">
+        <pre id="jmx-preview" style="white-space:pre-wrap;word-break:break-word;font-size:11px;color:var(--text2);">JMX preview will appear here after generation.</pre>
+      </div>
+    </div>
+
+    <div class="download-panel" id="dl-panel">
+      <div class="dl-header">
+        <div class="dl-icon">✓</div>
+        <div>
+          <div class="dl-title" id="dl-title">JMX Ready</div>
+          <div class="dl-sub"   id="dl-sub"></div>
+        </div>
+      </div>
+      <div class="dl-buttons" id="dl-buttons">
+        <a class="btn-download btn-jmx"  id="btn-dl-jmx"  href="#">⬇ Download .jmx</a>
+        <a class="btn-download btn-csv"  id="btn-dl-csv"  href="#" style="display:none">⬇ Download CSV</a>
+        <a class="btn-download btn-curl" id="btn-dl-curl" href="#">⬇ Download cURLs</a>
+        <button class="btn-download btn-new" onclick="resetAll()">↩ New Recording</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="slabel" style="margin-top:28px;">Load Test Report (Upload JTL + XML)</div>
+  <div class="input-panel">
+    <div class="input-row">
+      <div class="field">
+        <label>JTL File</label>
+        <input type="file" id="jtl-file" accept=".jtl,.csv,.xml">
+      </div>
+      <div class="field">
+        <label>XML File</label>
+        <input type="file" id="xml-file" accept=".xml,.jmx">
+      </div>
+      <button class="btn btn-generate" onclick="analyzeLoadTest()">Analyze Result</button>
+    </div>
+    <div id="lt-report" class="hint" style="margin-top:12px;">Upload both files to generate dashboard.</div>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+
+// ── State ────────────────────────────────────────────────────────────────────
+let _sessionId  = null;
+let _jobId      = null;
+let _evtSource  = null;
+let _pollTimer  = null;
+
+const PHASE_MAP = {
+  capture:     "step-capture",
+  grouping:    "step-grouping",
+  correlation: "step-correlation",
+  generating:  "step-generating",
+};
+let _curPhase = null;
+
+// ── DOM refs ─────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+// ── Step 1: open browser ──────────────────────────────────────────────────────
+async function startJourney() {
+  const url = $("url-input").value.trim();
+  if (!url) { $("url-input").focus(); return; }
+
+  setUI({ journeyDisabled: true, urlDisabled: true });
+
+  try {
+    const res  = await apiFetch("/api/start-recording", { url });
+    _sessionId = res.session_id;
+    $("recording-bar").classList.add("visible");
+    $("btn-generate").disabled = false;
+    pollCaptureCount();
+  } catch (err) {
+    showError("Failed to open browser: " + err.message);
+    resetAll();
+  }
+}
+
+function pollCaptureCount() {
+  if (!_sessionId) return;
+  fetch(`/api/session-status/${_sessionId}`)
+    .then(r => r.ok ? r.json() : Promise.reject(new Error(r.statusText)))
+    .then(d => {
+      $("rec-count").textContent = d.captured_count ?? 0;
+      _pollTimer = setTimeout(pollCaptureCount, 1000);
+    })
+    .catch(() => {
+      _pollTimer = setTimeout(pollCaptureCount, 2500);
+    });
+}
+
+// ── Step 2: stop + generate ───────────────────────────────────────────────────
+async function startGeneration() {
+  if (!_sessionId) return;
+  clearTimeout(_pollTimer);
+
+  setUI({ journeyDisabled: true, generateDisabled: true });
+  $("recording-bar").classList.remove("visible");
+  $("pipeline-section").style.display = "block";
+  $("results-section").style.display  = "block";
+
+  appendLog("⚡ JMX Forge — starting pipeline…", "info");
+
+  try {
+    const res = await apiFetch("/api/generate", {
+      session_id: _sessionId,
+      num_threads: parseInt($("num-threads").value || "10", 10),
+      ramp_up: parseInt($("ramp-up").value || "60", 10),
+      loop_count: parseInt($("loop-count").value || "1", 10),
+    });
+    _jobId = res.job_id;
+    openStream(_jobId);
+  } catch (err) {
+    appendLog("❌ " + err.message, "err");
+    setUI({ journeyDisabled: false });
+  }
+}
+
+async function loadJmxPreview() {
+  if (!_jobId) return;
+  try {
+    const res = await fetch(`/api/preview/${_jobId}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    $("jmx-preview").textContent = data.content || "No preview available.";
+    renderValidation(data.validation || null);
+  } catch {
+    $("jmx-preview").textContent = "Unable to load JMX preview.";
+  }
+}
+
+function renderValidation(validation) {
+  const el = $("jmx-validation");
+  if (!validation) {
+    el.textContent = "Validation details unavailable.";
+    return;
+  }
+  if (validation.valid) {
+    el.innerHTML = `PASS<br>Samplers: ${validation.samplers} | Transactions: ${validation.transactions} | ThreadGroups: ${validation.thread_groups}`;
+    return;
+  }
+  el.innerHTML = `FAIL<br>${esc(validation.error || "Unknown validation error")}`;
+}
+
+// ── SSE stream ────────────────────────────────────────────────────────────────
+function openStream(jobId) {
+  if (_evtSource) { _evtSource.close(); _evtSource = null; }
+
+  _evtSource = new EventSource(`/api/stream/${jobId}`);
+
+  _evtSource.onmessage = function(e) {
+    let parsed;
+    try { parsed = JSON.parse(e.data); } catch { return; }
+    const { event, data } = parsed;
+    if (!data) return;
+
+    switch (event) {
+      case "log":
+        appendLog(data.message || "", data.level || "");
+        break;
+
+      case "phase":
+        appendLog("");
+        appendLog("▶ " + (data.message || ""), "info");
+        setPhase(data.phase);
+        break;
+
+      case "transactions":
+        renderTransactions(data.transactions || []);
+        break;
+
+      case "correlations":
+        renderCorrelations(data.correlations || [], data.csv_columns || []);
+        $("s-corr").textContent = (data.correlations || []).length;
+        $("s-csv").textContent  = (data.csv_columns  || []).length;
+        break;
+
+      case "complete":
+        setAllDone();
+        $("s-req").textContent = data.request_count     ?? "?";
+        $("s-tx").textContent  = data.transaction_count ?? "?";
+        showDownload(data);
+        setUI({ journeyDisabled: false });
+        break;
+
+      case "error":
+        appendLog("❌ " + (data.message || "Unknown error"), "err");
+        if (data.detail) appendLog(data.detail, "err");
+        setUI({ journeyDisabled: false });
+        break;
+
+      case "done":
+        if (_evtSource) { _evtSource.close(); _evtSource = null; }
+        break;
+    }
+  };
+
+  _evtSource.onerror = function() {
+    // Only close — don't show an error unless we never got a "done" event
+    if (_evtSource) { _evtSource.close(); _evtSource = null; }
+  };
+}
+
+// ── Render helpers ────────────────────────────────────────────────────────────
+function renderTransactions(txs) {
+  const list = $("tx-list");
+  list.innerHTML = "";
+  $("s-tx").textContent = txs.length;
+  txs.forEach((tx, i) => {
+    const el = document.createElement("div");
+    el.className = "tx-item";
+    el.style.animationDelay = (i * 40) + "ms";
+    el.innerHTML = `
+      <div class="tx-n">${i + 1}</div>
+      <div class="tx-info">
+        <div class="tx-name">${esc(tx.name)}</div>
+        <div class="tx-desc">${esc(tx.description)}</div>
+      </div>
+      <div class="tx-cnt">${tx.request_count} req</div>`;
+    list.appendChild(el);
+  });
+}
+
+function renderCorrelations(corrs, csvCols) {
+  const list = $("corr-list");
+  list.innerHTML = "";
+
+  if (!corrs.length && !csvCols.length) {
+    list.innerHTML = '<div class="empty">No dynamic correlations detected<br><span style="color:var(--text3);font-size:10px">This is normal for simple or static applications</span></div>';
+    return;
+  }
+
+  corrs.forEach((c, i) => {
+    const el = document.createElement("div");
+    el.className = "corr-item";
+    el.style.animationDelay = (i * 40) + "ms";
+    el.innerHTML = `
+      <div class="corr-name">\${${esc(c.name)}}</div>
+      <div class="corr-meta">${esc(c.type.toUpperCase())} · seq ${c.source_seq} · used ${c.usage_count}× · confidence ${(Number(c.confidence || 0) * 100).toFixed(0)}%</div>
+      <div class="corr-meta">${esc(c.reason || "")}</div>
+      <span class="corr-expr">${esc(c.expression)}</span>`;
+    list.appendChild(el);
+  });
+
+  if (csvCols.length) {
+    const hdr = document.createElement("div");
+    hdr.style.cssText = "font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:2px;padding:10px 0 4px;";
+    hdr.textContent   = `CSV Parameterisation (${csvCols.length})`;
+    list.appendChild(hdr);
+
+    csvCols.forEach(col => {
+      const el = document.createElement("div");
+      el.className = "corr-item";
+      el.style.borderLeftColor = "var(--green)";
+      el.innerHTML = `
+        <div class="corr-name" style="color:var(--green)">${esc(col.name)}</div>
+        <div class="corr-meta">${esc(col.description)}</div>`;
+      list.appendChild(el);
+    });
+  }
+}
+
+async function analyzeLoadTest() {
+  const jtl = $("jtl-file").files[0];
+  const xml = $("xml-file").files[0];
+  if (!jtl || !xml) {
+    $("lt-report").textContent = "Please upload both JTL and XML files.";
+    return;
+  }
+  const fd = new FormData();
+  fd.append("jtl_file", jtl);
+  fd.append("xml_file", xml);
+  $("lt-report").textContent = "Analyzing...";
+  try {
+    const res = await fetch("/api/analyze-results", { method: "POST", body: fd });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      $("lt-report").textContent = "Error: " + (data.error || "Failed to analyze.");
+      return;
+    }
+    renderLoadTestReport(data);
+  } catch (e) {
+    $("lt-report").textContent = "Error: " + e.message;
+  }
+}
+
+function renderLoadTestReport(data) {
+  const s = data.summary || {};
+  const p = data.peak_window || {};
+  const labels = data.labels || [];
+  const top = labels.slice(0, 10).map(l =>
+    `${esc(l.label)} | samples=${l.samples} | err%=${l.error_percent} | p90=${l.p90_ms}ms | p95=${l.p95_ms}ms | p99=${l.p99_ms}ms`
+  ).join("<br>");
+  $("lt-report").innerHTML = `
+    <strong>Industry Report Summary</strong><br>
+    Start: ${esc(s.start_time || "-")}<br>
+    End: ${esc(s.end_time || "-")}<br>
+    Duration: ${esc(String(s.duration_seconds || 0))} sec<br>
+    Throughput: ${esc(String(s.throughput_rps || 0))} req/sec<br>
+    Peak started: ${esc(p.peak_started_at || "-")}<br>
+    Peak users: ${esc(String(p.peak_users || 0))}<br>
+    Samples: ${esc(String(s.samples || 0))} | Errors: ${esc(String(s.errors || 0))} (${esc(String(s.error_percent || 0))}%)<br>
+    Percentiles: p50=${esc(String(s.p50_ms || 0))}ms, p80=${esc(String(s.p80_ms || 0))}ms, p90=${esc(String(s.p90_ms || 0))}ms, p95=${esc(String(s.p95_ms || 0))}ms, p99=${esc(String(s.p99_ms || 0))}ms<br><br>
+    <strong>Top Labels</strong><br>${top || "No labels"}
+  `;
+}
+
+function showDownload(data) {
+  const panel = $("dl-panel");
+  panel.classList.add("visible");
+  $("dl-title").textContent = `JMX created — ${esc(data.app_name)}`;
+  $("dl-sub").textContent   =
+    `${data.transaction_count} transaction(s) · ${data.correlation_count} correlation(s) · ${data.request_count} request(s)`;
+
+  const jmxBtn = $("btn-dl-jmx");
+  jmxBtn.href        = `/api/download/${_jobId}/jmx`;
+  jmxBtn.textContent = `⬇ ${data.jmx_filename}`;
+
+  const curlBtn = $("btn-dl-curl");
+  curlBtn.href        = `/api/download/${_jobId}/curl`;
+  curlBtn.textContent = `⬇ ${data.curl_filename}`;
+
+  if (data.csv_filename) {
+    const csvBtn = $("btn-dl-csv");
+    csvBtn.style.display = "inline-flex";
+    csvBtn.href          = `/api/download/${_jobId}/csv`;
+    csvBtn.textContent   = `⬇ ${data.csv_filename}`;
+  }
+  loadJmxPreview();
+  renderValidation(data.validation || null);
+
+  // Scroll downloads into view
+  panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+// ── Pipeline step management ──────────────────────────────────────────────────
+function setPhase(phase) {
+  if (_curPhase && PHASE_MAP[_curPhase]) {
+    const el = $(PHASE_MAP[_curPhase]);
+    if (el) { el.classList.remove("active"); el.classList.add("done"); }
+  }
+  const next = phase && PHASE_MAP[phase] ? $(PHASE_MAP[phase]) : null;
+  if (next) next.classList.add("active");
+  _curPhase = phase;
+}
+
+function setAllDone() {
+  Object.values(PHASE_MAP).forEach(id => {
+    const el = $(id);
+    if (el) { el.classList.remove("active"); el.classList.add("done"); }
+  });
+}
+
+// ── Terminal log ──────────────────────────────────────────────────────────────
+function appendLog(msg, cls = "") {
+  const out  = $("log-out");
+  const line = document.createElement("div");
+  line.className   = "ll " + cls;
+  line.textContent = msg;
+  out.appendChild(line);
+  out.scrollTop = out.scrollHeight;
+}
+
+// ── Reset ─────────────────────────────────────────────────────────────────────
+function resetAll() {
+  clearTimeout(_pollTimer);
+  if (_evtSource) { _evtSource.close(); _evtSource = null; }
+  _sessionId = null; _jobId = null; _curPhase = null;
+
+  $("url-input").value    = "";
+  $("url-input").disabled = false;
+  $("btn-journey").disabled  = false;
+  $("btn-generate").disabled = true;
+  $("recording-bar").classList.remove("visible");
+  $("pipeline-section").style.display = "none";
+  $("results-section").style.display  = "none";
+  $("log-out").innerHTML   = "";
+  $("tx-list").innerHTML   = '<div class="empty">Waiting for pipeline…</div>';
+  $("corr-list").innerHTML = '<div class="empty">Waiting for pipeline…</div>';
+  $("dl-panel").classList.remove("visible");
+  $("s-req").textContent = $("s-tx").textContent = $("s-corr").textContent = $("s-csv").textContent = "—";
+  $("rec-count").textContent = "0";
+  $("btn-dl-csv").style.display = "none";
+  $("jmx-preview").textContent = "JMX preview will appear here after generation.";
+  $("jmx-validation").textContent = "Validation details will appear after generation.";
+  Object.values(PHASE_MAP).forEach(id => {
+    const el = $(id);
+    if (el) el.classList.remove("active", "done");
+  });
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function setUI({ journeyDisabled, generateDisabled, urlDisabled } = {}) {
+  if (journeyDisabled  !== undefined) $("btn-journey").disabled  = journeyDisabled;
+  if (generateDisabled !== undefined) $("btn-generate").disabled = generateDisabled;
+  if (urlDisabled      !== undefined) {
+    $("url-input").disabled = urlDisabled;
+    $("num-threads").disabled = urlDisabled;
+    $("ramp-up").disabled = urlDisabled;
+    $("loop-count").disabled = urlDisabled;
+  }
+}
+
+function showError(msg) {
+  alert("JMX Forge Error:\n" + msg);
+}
+
+function esc(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+async function apiFetch(endpoint, body) {
+  const res = await fetch(endpoint, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+// ── Keyboard shortcut ─────────────────────────────────────────────────────────
+$("url-input").addEventListener("keydown", e => {
+  if (e.key === "Enter") startJourney();
+});
+</script>
+</body>
+</html>

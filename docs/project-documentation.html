@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JMX Forge Project Documentation</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f5faf6; color: #1d2d23; }
+    .wrap { max-width: 1024px; margin: 0 auto; padding: 32px 20px 80px; }
+    h1, h2 { color: #1f6b40; }
+    .card { background: #fff; border: 1px solid #cfe6d7; border-radius: 10px; padding: 18px; margin: 16px 0; }
+    code { background: #eef8f0; padding: 2px 5px; border-radius: 4px; }
+    ul { margin: 8px 0 8px 18px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>JMX Forge Documentation</h1>
+    <p>Generated on 2026-05-05.</p>
+
+    <div class="card">
+      <h2>New Feature: AI-Based Correlation</h2>
+      <ul>
+        <li>Engine scans each response body/header/cookie candidate across all captured requests.</li>
+        <li>Each candidate is checked against subsequent request URL/body/header usage.</li>
+        <li>Correlations are scored by confidence and presented with explanation reason.</li>
+        <li>Only high-confidence dynamic fields are added to JMX extractors.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>New Feature: JTL + XML Analytics Dashboard</h2>
+      <ul>
+        <li>Uploads: one JTL file and one XML/JMX file.</li>
+        <li>Outputs: start/end time, duration, throughput, errors, average/min/max response times.</li>
+        <li>Percentiles: p50, p80, p90, p95, p99.</li>
+        <li>Peak window insights: peak started at and peak users.</li>
+        <li>Top-label breakdown with per-label percentile/error profile.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>APIs Added</h2>
+      <ul>
+        <li><code>POST /api/analyze-results</code> (multipart: <code>jtl_file</code>, <code>xml_file</code>)</li>
+        <li><code>GET /api/health</code></li>
+        <li><code>GET /api/jobs</code></li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>
